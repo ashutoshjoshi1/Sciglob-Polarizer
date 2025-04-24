@@ -19,22 +19,25 @@ class SpectrometerController(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        # ——— UI setup ———
+        # ——— Group box & layout ———
         self.groupbox = QGroupBox("Spectrometer")
         self.groupbox.setObjectName("specGroup")
 
         main_layout = QVBoxLayout()
         ctrl_layout = QHBoxLayout()
 
+        # Continuous‐save toggle (not yet implemented)
         self.toggle_btn = QPushButton("Start Saving")
         self.toggle_btn.setEnabled(False)
         self.toggle_btn.clicked.connect(self.toggle)
         ctrl_layout.addWidget(self.toggle_btn)
 
+        # Connect button
         self.conn_btn = QPushButton("Connect")
         self.conn_btn.clicked.connect(self.connect)
         ctrl_layout.addWidget(self.conn_btn)
 
+        # Start / Stop / Save
         self.start_btn = QPushButton("Start")
         self.start_btn.setEnabled(False)
         self.start_btn.clicked.connect(self.start)
@@ -52,6 +55,7 @@ class SpectrometerController(QObject):
 
         main_layout.addLayout(ctrl_layout)
 
+        # ——— Spectral plot ———
         pg.setConfigOption('background','w')
         pg.setConfigOption('foreground','k')
         self.plot = pg.PlotWidget()
@@ -74,6 +78,7 @@ class SpectrometerController(QObject):
         os.makedirs(self.csv_dir, exist_ok=True)
 
     def connect(self):
+        # Emit status so you get feedback
         self.status_signal.emit("Connecting to spectrometer...")
         try:
             handle, wavelengths, num_pixels, serial_str = connect_spectrometer()
@@ -110,12 +115,15 @@ class SpectrometerController(QObject):
         self.stop_btn.setEnabled(True)
         self.status_signal.emit("Measurement started")
 
+        # Update plot every 200 ms
         self.plot_timer = QTimer(self)
         self.plot_timer.timeout.connect(self._update_plot)
         self.plot_timer.start(200)
 
     def _cb(self, p_data, p_user):
-        if p_user[0] == 0:
+        # Only update on successful scan (status_code == 0)
+        status_code = p_user[0]
+        if status_code == 0:
             _, data = AVS_GetScopeData(self.handle)
             full = [0.0] * self.npix
             full[:len(data)] = data
@@ -123,13 +131,11 @@ class SpectrometerController(QObject):
             self.save_btn.setEnabled(True)
             self.toggle_btn.setEnabled(True)
         else:
-            self.status_signal.emit(f"Spectrometer error code {p_user[0]}")
+            self.status_signal.emit(f"Spectrometer error code {status_code}")
 
     def _update_plot(self):
-        if hasattr(self,'intens'):
+        if hasattr(self, 'intens'):
             self.curve.setData(self.wls, self.intens)
-
-
 
     def stop(self):
         if not getattr(self, 'measure_active', False):
@@ -159,6 +165,7 @@ class SpectrometerController(QObject):
             self.status_signal.emit(f"Save error: {e}")
 
     def toggle(self):
+        # stub for continuous‐save implementation
         self.status_signal.emit("Continuous‐save not yet implemented")
 
     def is_ready(self):
