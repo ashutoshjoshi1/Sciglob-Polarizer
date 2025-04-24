@@ -126,28 +126,10 @@ class SpectrometerController(QObject):
             self.status_signal.emit(f"Spectrometer error code {p_user[0]}")
 
     def _update_plot(self):
-        if not hasattr(self, 'intens') or not self.intens:
+        if not self.wls or not self.intens:
             return
+        self.curve.setData(self.wls, self.intens)
 
-        # 1) Find first non-zero intensity index
-        try:
-            start_idx = next(i for i, v in enumerate(self.intens) if v > 0)
-        except StopIteration:
-            start_idx = 0
-
-        # 2) Find end index where wavelength exceeds 600 nm
-        end_idx = next((i for i, wl in enumerate(self.wls) if wl > 600), len(self.wls))
-
-        # 3) Slice both arrays
-        xs = self.wls[start_idx:end_idx]
-        ys = self.intens[start_idx:end_idx]
-
-        # 4) Update the curve
-        self.curve.setData(xs, ys)
-
-        # 5) Zoom the plot to [first_nonzero, 600]
-        if xs:
-            self.plot.setXRange(xs[0], xs[-1], padding=0.02)
 
 
     def stop(self):
