@@ -129,19 +129,26 @@ class SpectrometerController(QObject):
         if not hasattr(self, 'intens') or not self.intens:
             return
 
-        # find first non-zero intensity
+        # 1) Find first non-zero intensity index
         try:
-            start_idx = next(i for i, val in enumerate(self.intens) if val > 0)
+            start_idx = next(i for i, v in enumerate(self.intens) if v > 0)
         except StopIteration:
             start_idx = 0
 
-        xs = self.wls[start_idx:]
-        ys = self.intens[start_idx:]
+        # 2) Find end index where wavelength exceeds 600 nm
+        end_idx = next((i for i, wl in enumerate(self.wls) if wl > 600), len(self.wls))
+
+        # 3) Slice both arrays
+        xs = self.wls[start_idx:end_idx]
+        ys = self.intens[start_idx:end_idx]
+
+        # 4) Update the curve
         self.curve.setData(xs, ys)
 
-        # optionally zoom in to that region
+        # 5) Zoom the plot to [first_nonzero, 600]
         if xs:
             self.plot.setXRange(xs[0], xs[-1], padding=0.02)
+
 
     def stop(self):
         if not getattr(self, 'measure_active', False):
