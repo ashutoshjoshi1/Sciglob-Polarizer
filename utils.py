@@ -25,11 +25,9 @@ def draw_device_orientation(ax,roll,pitch,yaw,lat,lon):
 try:
     import libscrc
     def modbus_crc16(data: bytes) -> int:
-        """Calculate Modbus CRC-16 for the given data bytes."""
         return libscrc.modbus(data)
 except ImportError:
     def modbus_crc16(data: bytes) -> int:
-        """Calculate Modbus CRC-16 for the given data bytes (fallback implementation)."""
         crc = 0xFFFF
         for b in data:
             crc ^= b
