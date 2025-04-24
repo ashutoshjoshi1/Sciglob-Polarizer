@@ -1,4 +1,4 @@
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSignal, QTimer
 from PyQt5.QtWidgets import QGroupBox, QLabel, QComboBox, QPushButton, QLineEdit, QGridLayout
 from drivers.motor import MotorConnectThread, send_move_command
 from serial.tools import list_ports
@@ -16,6 +16,8 @@ class MotorController(QObject):
         self.port_combo.setEditable(True)
         ports = [p.device for p in list_ports.comports()]
         self.port_combo.addItems(ports or [f"COM{i}" for i in range(1,10)])
+        self.port_combo.setCurrentText("COM11")
+        QTimer.singleShot(0, self.connect)
         layout.addWidget(self.port_combo,0,1)
         self.connect_btn = QPushButton("Connect")
         self.connect_btn.clicked.connect(self.connect)
