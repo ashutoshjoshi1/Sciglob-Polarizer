@@ -48,8 +48,7 @@ class MotorConnectThread(QThread):
                             )
                             break
                         ser.close()
-                    except SerialException as e:
-                        # Could log e if needed
+                    except SerialException:
                         continue
                 if found_serial:
                     break
