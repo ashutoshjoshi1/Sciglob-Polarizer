@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "C:\Users\Sciglob\Downloads\Sciglob-Polarizer-main\main.py", line 4, in <module>
+    from gui.main_window import MainWindow
+  File "C:\Users\Sciglob\Downloads\Sciglob-Polarizer-main\gui\main_window.py", line 3, in <module>
+    from controllers.motor_controller import MotorController
+  File "C:\Users\Sciglob\Downloads\Sciglob-Polarizer-main\controllers\motor_controller.py", line 4, in <module>
+    import motor
+ModuleNotFoundError: No module named 'motor'
