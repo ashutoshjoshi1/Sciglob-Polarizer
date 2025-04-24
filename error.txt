@@ -1,8 +1,13 @@
 Traceback (most recent call last):
-  File "C:\Users\Sciglob\Downloads\Sciglob-Polarizer-main\main.py", line 4, in <module>
-    from gui.main_window import MainWindow
-  File "C:\Users\Sciglob\Downloads\Sciglob-Polarizer-main\gui\main_window.py", line 3, in <module>
-    from controllers.motor_controller import MotorController
-  File "C:\Users\Sciglob\Downloads\Sciglob-Polarizer-main\controllers\motor_controller.py", line 4, in <module>
-    import motor
-ModuleNotFoundError: No module named 'motor'
+  File "C:\Users\Sciglob\Downloads\Sciglob-Polarizer-main\main.py", line 21, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\Sciglob\Downloads\Sciglob-Polarizer-main\main.py", line 14, in main
+    win = MainWindow()
+  File "C:\Users\Sciglob\Downloads\Sciglob-Polarizer-main\gui\main_window.py", line 56, in __init__
+    self._update_indicators()
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Sciglob\Downloads\Sciglob-Polarizer-main\gui\main_window.py", line 60, in _update_indicators
+    color = "green" if self.motor_ctrl.is_connected() else "red"
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'MotorController' object has no attribute 'is_connected'. Did you mean: 'disconnect'?

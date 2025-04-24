@@ -1,81 +1,78 @@
 import serial
 from PyQt5.QtCore import QThread, pyqtSignal
 import utils
+from serial import SerialException
 
-# Motor control constants for Oriental Motor AZ series (Modbus)
-TrackerSpeed = 10000       # Motor rotation speed (steps/s)
-TrackerCurrent = 1000      # Motor current limit (in 0.1% units, 1000 = 100.0%)
-SlaveID = 2                # Modbus slave address of the motor controller
+TrackerSpeed = 10000       # steps/s
+TrackerCurrent = 1000      # in 0.1% units
+SlaveID = 2                # Modbus ID
 BaudRateList = [9600, 19200, 38400, 57600, 115200, 230400]
+Parities = [serial.PARITY_EVEN, serial.PARITY_NONE, serial.PARITY_ODD]
+StopBits = [serial.STOPBITS_ONE, serial.STOPBITS_TWO]
 
 class MotorConnectThread(QThread):
-    """Thread to attempt motor serial connection with baud auto-detection."""
-    result_signal = pyqtSignal(object, int, str)  # will emit (serial_obj or None, baud_rate, message)
+    result_signal = pyqtSignal(object, int, str)
+
     def __init__(self, port_name, parent=None):
         super().__init__(parent)
         self.port_name = port_name
+
     def run(self):
         found_serial = None
-        found_baud = None
+        found_baud = 0
         message = ""
-        # Try each baud rate to find a responding motor
         for baud in BaudRateList:
-            try:
-                ser = serial.Serial(
-                    self.port_name, baudrate=baud, bytesize=serial.EIGHTBITS,
-                    parity=serial.PARITY_EVEN, stopbits=serial.STOPBITS_ONE,
-                    timeout=0.5
-                )
-                # Example Modbus read command (function 0x03) at register 0x0058 (2 registers)
-                base_cmd = bytes([SlaveID, 0x03, 0x00, 0x58, 0x00, 0x02])
-                crc_val = utils.modbus_crc16(base_cmd)
-                crc_bytes = crc_val.to_bytes(2, 'little')
-                ser.write(base_cmd + crc_bytes)
-                # Read a few bytes to detect any response
-                response = ser.read(5)
-                if response:
-                    found_serial = ser
-                    found_baud = baud
-                    message = f"Motor connected on {self.port_name} at {baud} baud."
+            for parity in Parities:
+                for sb in StopBits:
+                    try:
+                        ser = serial.Serial(
+                            port=self.port_name,
+                            baudrate=baud,
+                            bytesize=serial.EIGHTBITS,
+                            parity=parity,
+                            stopbits=sb,
+                            timeout=1.0
+                        )
+                        # Test minimal Modbus read at register 0x0000
+                        test_cmd = bytes([SlaveID, 0x03, 0x00, 0x00, 0x00, 0x01])
+                        crc = utils.modbus_crc16(test_cmd).to_bytes(2, 'little')
+                        ser.reset_input_buffer()
+                        ser.write(test_cmd + crc)
+                        resp = ser.read(7)
+                        if resp and len(resp) >= 5 and resp[1] == 0x03:
+                            found_serial = ser
+                            found_baud = baud
+                            message = (
+                                f"Motor connected on {self.port_name} at {baud} baud, "
+                                f"parity={parity}, stopbits={sb}."
+                            )
+                            break
+                        ser.close()
+                    except SerialException:
+                        continue
+                if found_serial:
                     break
-                ser.close()
-            except Exception:
-                # Ignore exceptions and try next baud
-                continue
+            if found_serial:
+                break
+
         if not found_serial:
             message = f"No response from motor on {self.port_name}."
-        # Emit result (serial object if found, else None)
-        self.result_signal.emit(found_serial, found_baud if found_baud else 0, message)
+        self.result_signal.emit(found_serial, found_baud, message)
+
 
 def send_move_command(serial_obj, angle: int) -> bool:
-    """Send a move command to the motor to go to the specified angle (degrees). Returns True if ACK received."""
-    # Construct Modbus Write Multiple Registers command to move motor to target angle
-    base_cmd = bytes([SlaveID, 0x10, 0x00, 0x58, 0x00, 0x12, 0x24,
-                      0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01])
-    # Prepare data bytes for angle, speed, current
-    try:
-        angle_bytes = angle.to_bytes(4, 'big', signed=True)
-    except OverflowError:
-        # Clamp angle to 32-bit signed range if out of bounds
-        val = max(min(angle, 0x7FFFFFFF), -0x80000000)
-        angle_bytes = val.to_bytes(4, 'big', signed=True)
+    base_cmd = bytes([SlaveID, 0x10, 0x00, 0x58, 0x00, 0x12, 0x24] + [0x00]*12)
+    angle_bytes = angle.to_bytes(4, 'big', signed=True)
     speed_bytes = TrackerSpeed.to_bytes(4, 'big', signed=True)
+    mid = bytes([0x00,0x00,0x1F,0x40,0x00,0x00,0x1F,0x40])
     current_bytes = TrackerCurrent.to_bytes(4, 'big', signed=True)
-    # Mid and end bytes (acceleration/deceleration and execution parameters)
-    mid_bytes = bytes([0x00, 0x00, 0x1F, 0x40, 0x00, 0x00, 0x1F, 0x40])
-    end_bytes = bytes([0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01])
-    full_cmd = base_cmd + angle_bytes + speed_bytes + mid_bytes + current_bytes + end_bytes
-    # Append CRC16
-    crc_val = utils.modbus_crc16(full_cmd)
-    crc_bytes = crc_val.to_bytes(2, 'little')
+    end = bytes([0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01])
+    full_cmd = base_cmd + angle_bytes + speed_bytes + mid + current_bytes + end
+    crc = utils.modbus_crc16(full_cmd).to_bytes(2, 'little')
     try:
         serial_obj.reset_input_buffer()
-        serial_obj.write(full_cmd + crc_bytes)
-        # Response for function 0x10 (Write Multiple Registers) should be 8 bytes (including CRC)
-        response = serial_obj.read(8)
-        if response and len(response) >= 6 and response[1] == 0x10:
-            return True
-        else:
-            return False
+        serial_obj.write(full_cmd + crc)
+        resp = serial_obj.read(8)
+        return bool(resp and len(resp) >= 6 and resp[1] == 0x10)
     except Exception:
         return False
