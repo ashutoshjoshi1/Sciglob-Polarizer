@@ -1,3 +1,4 @@
+# controllers/motor_controller.py
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer
 from PyQt5.QtWidgets import QGroupBox, QLabel, QComboBox, QPushButton, QLineEdit, QGridLayout
 from drivers.motor import MotorConnectThread, send_move_command
@@ -85,3 +86,7 @@ class MotorController(QObject):
 
         success = send_move_command(self.serial, angle)
         self.status_signal.emit("Moved" if success else "No ACK or error")
+
+    def is_connected(self):
+        """Return the connection status of the motor."""
+        return self._connected
