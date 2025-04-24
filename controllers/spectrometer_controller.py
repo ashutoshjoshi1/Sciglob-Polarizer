@@ -126,9 +126,8 @@ class SpectrometerController(QObject):
             self.status_signal.emit(f"Spectrometer error code {p_user[0]}")
 
     def _update_plot(self):
-        if not self.wls or not self.intens:
-            return
-        self.curve.setData(self.wls, self.intens)
+        if hasattr(self,'intens'):
+            self.curve.setData(self.wls, self.intens)
 
 
 
