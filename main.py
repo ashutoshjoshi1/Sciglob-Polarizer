@@ -12,7 +12,7 @@ def main():
         splash.show()
         app.processEvents()
     win = MainWindow()
-    win.showFullScreen()
+    win.show()
     if 'splash' in locals():
         splash.finish(win)
     sys.exit(app.exec_())
