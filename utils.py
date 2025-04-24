@@ -20,3 +20,22 @@ def draw_device_orientation(ax,roll,pitch,yaw,lat,lon):
     edges=[[rc[0],rc[1],rc[2],rc[3]],[rc[4],rc[5],rc[6],rc[7]],[rc[0],rc[1],rc[5],rc[4]],[rc[2],rc[3],rc[7],rc[6]],[rc[1],rc[2],rc[6],rc[5]],[rc[4],rc[7],rc[3],rc[0]]]
     for e in edges: ax.add_collection3d(Poly3DCollection([e],facecolors='#ccc',edgecolors='k',alpha=0.2))
     sx,sy,sz=compute_sun_vector(lat,lon); ax.scatter([sx],[sy],[sz],s=50)
+
+
+try:
+    import libscrc
+    def modbus_crc16(data: bytes) -> int:
+        """Calculate Modbus CRC-16 for the given data bytes."""
+        return libscrc.modbus(data)
+except ImportError:
+    def modbus_crc16(data: bytes) -> int:
+        """Calculate Modbus CRC-16 for the given data bytes (fallback implementation)."""
+        crc = 0xFFFF
+        for b in data:
+            crc ^= b
+            for _ in range(8):
+                if crc & 1:
+                    crc = (crc >> 1) ^ 0xA001
+                else:
+                    crc >>= 1
+        return crc & 0xFFFF
