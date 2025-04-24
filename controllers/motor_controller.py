@@ -1,3 +1,4 @@
+# controllers/motor_controller.py
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer
 from PyQt5.QtWidgets import QGroupBox, QLabel, QComboBox, QPushButton, QLineEdit, QGridLayout
 from drivers.motor import MotorConnectThread, send_move_command
