@@ -1,7 +1,7 @@
 import os
 import numpy as np
 from PyQt5.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QGridLayout, QSplitter, QStatusBar
+    QMainWindow, QWidget, QVBoxLayout, QGridLayout, QSplitter, QStatusBar, QPushButton
 )
 from PyQt5.QtCore import QTimer, Qt, QDateTime
 from controllers.motor_controller import MotorController
@@ -14,7 +14,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Spectrometer, Motor, IMU & Temperature Control")
-        self.setMinimumSize(1920, 1080)
+        self.setMinimumSize(1000, 750)
 
         # Status bar
         self.status_bar = QStatusBar()
@@ -59,13 +59,18 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(splitter)
 
+        # Toggle save button
+        self.toggle_save_button = QPushButton("Start Saving")
+        self.toggle_save_button.clicked.connect(self.toggle_data_saving)
+        main_layout.addWidget(self.toggle_save_button)
+
         # Status indicator updater
         self.status_timer = QTimer(self)
         self.status_timer.timeout.connect(self._update_indicators)
         self.status_timer.start(1000)
         self._update_indicators()
 
-        # ── toggle_data_saving ───────────────────────────────────────────────
+        # ── toggle_data_saving setup ─────────────────────────────────────────
         self.csv_file     = None
         self.log_file     = None
         self.csv_dir      = "data"
