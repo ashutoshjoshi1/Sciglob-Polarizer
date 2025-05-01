@@ -100,7 +100,7 @@ class MainWindow(QMainWindow):
 
     def on_start_measurement(self):
         """Configure the spectrometer callback + start the plot timer."""
-        import spectrometer
+        from drivers import spectrometer
         if getattr(self, 'spec_handle', None) is None \
            or self.spec_handle == spectrometer.INVALID_AVS_HANDLE_VALUE:
             self.status_bar.showMessage("Spectrometer not connected.")
