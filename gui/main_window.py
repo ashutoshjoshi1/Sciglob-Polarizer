@@ -2,7 +2,8 @@
 
 import os
 import numpy as np
-import motor                                 # driver-level module for TrackerSpeed / TrackerCurrent
+from drivers import motor               # ← properly import your motor driver
+
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QGridLayout, QSplitter,
     QStatusBar, QPushButton
@@ -23,8 +24,8 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1920, 1000)
 
         # in-memory stores
-        self.latest_data = {}     # imu, gps, temp controller, etc.
-        self.wavelengths = []     # filled by spectro callback
+        self.latest_data = {}
+        self.wavelengths = []
         self.intensities = []
 
         # Status bar
@@ -43,13 +44,13 @@ class MainWindow(QMainWindow):
         self.filter_ctrl = FilterWheelController(parent=self)
         self.imu_ctrl    = IMUController(parent=self)
 
-        # route status messages into status bar
+        # Route status messages into status bar
         for ctrl in (self.temp_ctrl, self.spec_ctrl,
                      self.motor_ctrl, self.filter_ctrl,
                      self.imu_ctrl):
             ctrl.status_signal.connect(self.status_bar.showMessage)
 
-        # add widgets
+        # Build UI
         main_layout.addWidget(self.temp_ctrl.widget)
 
         splitter = QSplitter(Qt.Horizontal)
@@ -68,18 +69,18 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(1, 2)
         main_layout.addWidget(splitter)
 
-        # start/pause button
+        # Start/Pause button
         self.toggle_save_button = QPushButton("Start Saving")
         self.toggle_save_button.clicked.connect(self.toggle_data_saving)
         main_layout.addWidget(self.toggle_save_button)
 
-        # little green/red dot refresher
+        # Status-indicator refresher
         self.status_timer = QTimer(self)
         self.status_timer.timeout.connect(self._update_indicators)
         self.status_timer.start(1000)
         self._update_indicators()
 
-        # prepare data folder & files
+        # Prepare data folder & timers
         self.csv_dir    = "data"
         self.log_dir    = "data"
         os.makedirs(self.csv_dir, exist_ok=True)
@@ -94,10 +95,8 @@ class MainWindow(QMainWindow):
 
 
     def _spectro_callback(self, handle, read_array, num_read, p_context):
-        """Driver callback: stash intensities + wavelengths."""
         arr = np.ctypeslib.as_array(read_array, shape=(num_read,))
         self.intensities = arr.tolist()
-        # assume your controller sets start_nm/end_nm
         self.wavelengths = np.linspace(
             self.spec_ctrl.start_nm,
             self.spec_ctrl.end_nm,
@@ -112,10 +111,8 @@ class MainWindow(QMainWindow):
 
 
     def toggle_data_saving(self):
-        """Open/close files and start/stop the 1 Hz saver."""
         if not self.continuous_saving:
-            # --- START ---
-            # close any old
+            # --- START LOGGING ---
             if self.csv_file:
                 self.csv_file.close()
             if self.log_file:
@@ -132,7 +129,6 @@ class MainWindow(QMainWindow):
                 self.status_bar.showMessage(f"Failed to open files: {e}")
                 return
 
-            # write header
             headers = [
                 "Timestamp",
                 "MotorPos_steps",
@@ -157,14 +153,13 @@ class MainWindow(QMainWindow):
             self.csv_file.flush()
             os.fsync(self.csv_file.fileno())
 
-            # fire up the timer
             self.save_data_timer.start(1000)
             self.continuous_saving = True
             self.toggle_save_button.setText("Pause Saving")
             self.status_bar.showMessage(f"Started saving → {self.csv_file_path}")
 
         else:
-            # --- STOP ---
+            # --- STOP LOGGING ---
             self.continuous_saving = False
             self.save_data_timer.stop()
             if self.csv_file:
@@ -178,7 +173,6 @@ class MainWindow(QMainWindow):
 
 
     def save_continuous_data(self):
-        """Called every second once saving is active."""
         if not (self.csv_file and self.log_file):
             return
 
@@ -187,12 +181,12 @@ class MainWindow(QMainWindow):
             ts_csv = now.toString("yyyy-MM-dd hh:mm:ss.zzz")
             ts_txt = now.toString("yyyy-MM-dd hh:mm:ss")
 
-            # motor
+            # motor data from drivers.motor
             motor_pos         = int(getattr(self, "current_motor_angle", 0))
             motor_speed       = getattr(motor, "TrackerSpeed", 0)
             motor_current_pct = getattr(motor, "TrackerCurrent", 0) / 10.0
 
-            # IMU / temp / GPS
+            # imu / gps / temp data
             r, p, y    = self.latest_data.get("rpy",         (0,0,0))
             ax, ay, az = self.latest_data.get("accel",       (0,0,0))
             gx, gy, gz = self.latest_data.get("gyro",        (0,0,0))
@@ -211,7 +205,7 @@ class MainWindow(QMainWindow):
                 str(motor_speed),
                 f"{motor_current_pct:.1f}",
                 "", "", "",
-                getattr(self, "filter_position", ""),   # if you track filter pos
+                getattr(self, "filter_position", ""),
                 f"{r:.2f}", f"{p:.2f}", f"{y:.2f}",
                 f"{ax:.2f}", f"{ay:.2f}", f"{az:.2f}",
                 f"{gx:.2f}", f"{gy:.2f}", f"{gz:.2f}",
@@ -219,10 +213,8 @@ class MainWindow(QMainWindow):
                 f"{pres:.2f}", f"{temp:.2f}",
                 f"{lat:.6f}", f"{lon:.6f}",
                 str(int(integ)),
-                f"{tc_curr:.2f}", f"{tc_set:.2f}",
+                f"{tc_curr:.2f}", f"{tc_set:.2f}"
             ]
-
-            # append spectrometer intensities
             for inten in self.intensities:
                 row.append(f"{inten:.4f}")
 
@@ -231,14 +223,13 @@ class MainWindow(QMainWindow):
             self.csv_file.flush()
             os.fsync(self.csv_file.fileno())
 
-            # text log: just peak intensity
             peak = max(self.intensities) if self.intensities else 0
             txt_line = f"{ts_txt} | Peak {peak}\n"
             self.log_file.write(txt_line)
             self.log_file.flush()
             os.fsync(self.log_file.fileno())
 
-            print("Saved row:", row)   # debug in your terminal
+            print("Saved row:", row)
 
         except Exception as e:
             print("Error in save_continuous_data:", e)
@@ -246,26 +237,13 @@ class MainWindow(QMainWindow):
 
 
     def _update_indicators(self):
-        # Motor
-        col = "green" if self.motor_ctrl.is_connected() else "red"
-        gb  = self.motor_ctrl.groupbox
-        gb.setTitle("● Motor")
-        gb.setStyleSheet(f"QGroupBox#motorGroup::title {{ color: {col}; }}")
-
-        # Filter
-        col = "green" if self.filter_ctrl.is_connected() else "red"
-        gb  = self.filter_ctrl.groupbox
-        gb.setTitle("● Filter Wheel")
-        gb.setStyleSheet(f"QGroupBox#filterwheelGroup::title {{ color: {col}; }}")
-
-        # IMU
-        col = "green" if self.imu_ctrl.is_connected() else "red"
-        gb  = self.imu_ctrl.groupbox
-        gb.setTitle("● IMU")
-        gb.setStyleSheet(f"QGroupBox#imuGroup::title {{ color: {col}; }}")
-
-        # Spectrometer
-        col = "green" if self.spec_ctrl.is_ready() else "red"
-        gb  = self.spec_ctrl.groupbox
-        gb.setTitle("● Spectrometer")
-        gb.setStyleSheet(f"QGroupBox#specGroup::title {{ color: {col}; }}")
+        for ctrl, name, prop in [
+            (self.motor_ctrl,  "Motor",       self.motor_ctrl.is_connected),
+            (self.filter_ctrl,"Filter Wheel", self.filter_ctrl.is_connected),
+            (self.imu_ctrl,    "IMU",         self.imu_ctrl.is_connected),
+            (self.spec_ctrl,   "Spectrometer",self.spec_ctrl.is_ready)
+        ]:
+            col = "green" if prop() else "red"
+            gb  = ctrl.groupbox
+            gb.setTitle(f"● {name}")
+            gb.setStyleSheet(f"QGroupBox#{gb.objectName()}::title {{ color: {col}; }}")
